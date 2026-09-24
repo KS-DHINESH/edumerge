@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ticket List</title>
+    <link rel="stylesheet" href="/css/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="container topbar-inner">
+        <div class="brand">College Support Portal</div>
+        <nav class="nav-links">
+          <a href="/student-dashboard.html">Dashboard</a>
+          <a href="/create-ticket.html">Create Ticket</a>
+          <a href="/ticket-list.html">Tickets</a>
+        </nav>
+        <div class="nav-actions">
+          <button class="ghost-btn" onclick="logoutUser()">Logout</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="container">
+      <div class="page-header">
+        <h1>Ticket List</h1>
+      </div>
+
+      <section class="section-card">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Subject</th>
+              <th>Student</th>
+              <th>Assigned</th>
+              <th>Priority</th>
+              <th>Status</th>
+              <th>Created</th>
+              <th>SLA</th>
+              <th>SLA Status</th>
+            </tr>
+          </thead>
+          <tbody id="ticketTableBody"></tbody>
+        </table>
+      </section>
+    </main>
+
+    <div id="toast" class="toast"></div>
+
+    <script src="/js/app.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', async () => {
+        const user = await ensureAuthenticated();
+        if (!user) return;
+
+        try {
+          const tickets = await apiRequest('/api/tickets');
+          renderTicketTable(tickets || [], document.getElementById('ticketTableBody'), user.role);
+        } catch (error) {
+          showToast(error.message, true);
+        }
+      });
+    </script>
+  </body>
+</html>

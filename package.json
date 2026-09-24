@@ -1,0 +1,22 @@
+{
+  "name": "edumerge-support-ticket-system",
+  "version": "1.0.0",
+  "description": "Student support and ticket management application using Node.js, Express, SQLite, HTML, CSS, and JavaScript",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "student-support",
+    "ticketing",
+    "sqlite",
+    "express"
+  ],
+  "author": "Copilot",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.19.2",
+    "express-session": "^1.18.0",
+    "sqlite3": "^5.1.7"
+  }
+}

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Student Dashboard</title>
+    <link rel="stylesheet" href="/css/style.css" />
+  </head>
+  <body>
+    <div class="dashboard-shell">
+      <aside class="sidebar">
+        <div class="brand">College Support Portal</div>
+        <nav class="sidebar-nav">
+          <a class="active" href="/student-dashboard.html">Dashboard</a>
+          <a href="/create-ticket.html">Create Ticket</a>
+          <a href="/ticket-list.html">My Tickets</a>
+        </nav>
+        <div class="sidebar-footer">
+          <span id="currentUser">Student</span>
+          <button class="ghost-btn" onclick="logoutUser()">Logout</button>
+        </div>
+      </aside>
+
+      <main class="content-panel">
+        <header class="content-header">
+          <div>
+            <p class="eyebrow">Student portal</p>
+            <h1>Student Dashboard</h1>
+          </div>
+          <a class="primary-btn" href="/create-ticket.html">Create New Ticket</a>
+        </header>
+
+        <section class="grid stats-grid">
+          <div class="stat-card">
+            <div class="stat-label">Total Tickets</div>
+            <div class="stat-value" data-stat="total">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Open Tickets</div>
+            <div class="stat-value" data-stat="open">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Resolved</div>
+            <div class="stat-value" data-stat="resolved">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">SLA Breaches</div>
+            <div class="stat-value" data-stat="breached">0</div>
+          </div>
+        </section>
+
+        <section class="section-card" style="margin-top: 22px;">
+          <h2>Recent Tickets</h2>
+          <div id="recentTickets"></div>
+        </section>
+
+        <section class="section-card" style="margin-top: 22px;">
+          <div class="toolbar">
+            <h2>My Tickets</h2>
+            <div class="filter-row">
+              <label for="statusFilter">Filter</label>
+              <select id="statusFilter">
+                <option value="All">All statuses</option>
+                <option value="New">New</option>
+                <option value="Assigned">Assigned</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Pending Student">Pending Student</option>
+                <option value="Resolved">Resolved</option>
+                <option value="Closed">Closed</option>
+              </select>
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Subject</th>
+                <th>Student</th>
+                <th>Staff</th>
+                <th>Priority</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th>SLA</th>
+                <th>SLA Status</th>
+              </tr>
+            </thead>
+            <tbody id="ticketTableBody"></tbody>
+          </table>
+        </section>
+      </main>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script src="/js/app.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', async () => {
+        const user = await ensureAuthenticated();
+        if (!user) return;
+        if (user.role !== 'Student') {
+          redirectToDashboard(user.role);
+          return;
+        }
+
+        document.getElementById('currentUser').textContent = `${user.name} (${user.role})`;
+
+        try {
+          const summary = await apiRequest('/api/dashboard');
+          const tickets = await apiRequest('/api/tickets');
+          const statusFilter = document.getElementById('statusFilter');
+
+          renderSummaryCards({
+            total: Number(summary.summary.total || 0),
+            open: Number(summary.summary.open || 0),
+            resolved: Number(summary.summary.resolved || 0),
+            breached: Number(summary.summary.breached || 0)
+          });
+
+          renderRecentTickets(summary.recent || [], document.getElementById('recentTickets'));
+          function applyFilter() {
+            const filtered = statusFilter.value === 'All'
+              ? tickets
+              : tickets.filter((ticket) => ticket.status === statusFilter.value);
+            renderTicketTable(filtered || [], document.getElementById('ticketTableBody'), 'Student');
+          }
+          statusFilter.addEventListener('change', applyFilter);
+          applyFilter();
+        } catch (error) {
+          showToast(error.message, true);
+        }
+      });
+    </script>
+  </body>
+</html>

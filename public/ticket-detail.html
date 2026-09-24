@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ticket Details</title>
+    <link rel="stylesheet" href="/css/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="container topbar-inner">
+        <div class="brand">College Support Portal</div>
+        <nav class="nav-links">
+          <a href="/student-dashboard.html">Dashboard</a>
+          <a href="/ticket-list.html">Tickets</a>
+        </nav>
+        <div class="nav-actions">
+          <button class="ghost-btn" onclick="logoutUser()">Logout</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="container">
+      <div class="page-header">
+        <h1>Ticket Details</h1>
+      </div>
+
+      <div class="ticket-shell">
+        <section class="section-card">
+          <div id="ticketTitle" style="margin-bottom: 16px;"></div>
+          <div id="ticketInfo"></div>
+          <div id="activityList" style="margin-top: 18px;"></div>
+        </section>
+
+        <aside class="section-card">
+          <h3>Actions</h3>
+          <div id="ticketActions"></div>
+        </aside>
+      </div>
+    </main>
+
+    <div id="toast" class="toast"></div>
+
+    <script src="/js/app.js"></script>
+    <script>
+      const queryParams = new URLSearchParams(window.location.search);
+      const ticketId = queryParams.get('id');
+
+      async function populateStaffOptions(select) {
+        const staff = await apiRequest('/api/users/staff');
+        select.innerHTML = '<option value="">Unassigned</option>';
+        staff.forEach((member) => {
+          const option = document.createElement('option');
+          option.value = member.id;
+          option.textContent = member.name;
+          select.appendChild(option);
+        });
+      }
+
+      function renderTicket(ticket) {
+        const ticketTitle = document.getElementById('ticketTitle');
+        const ticketInfo = document.getElementById('ticketInfo');
+
+        ticketTitle.innerHTML = `
+          <div class="detail-meta">
+            <span class="badge ${statusBadgeClass(ticket.status)}">${ticket.status}</span>
+            <span class="badge ${priorityClass(ticket.priority)}">${ticket.priority}</span>
+            <span class="sla-pill ${ticket.isSlaBreached ? 'breach' : 'ok'}">${ticket.isSlaBreached ? 'SLA Breached' : 'SLA On Time'}</span>
+          </div>
+          <h2>#${ticket.id} - ${ticket.subject}</h2>
+        `;
+
+        ticketInfo.innerHTML = `
+          <div class="detail-box">
+            <p><strong>Student:</strong> ${ticket.student_name || 'Unknown'}</p>
+            <p><strong>Category:</strong> ${ticket.category}</p>
+            <p><strong>Assigned Staff:</strong> ${ticket.assigned_staff_name || 'Unassigned'}</p>
+            <p><strong>Created:</strong> ${formatDate(ticket.created_at)}</p>
+            <p><strong>SLA Due:</strong> ${formatDate(ticket.sla_due_at)}</p>
+            <p><strong>Resolution Date:</strong> ${formatDate(ticket.resolution_date)}</p>
+            <p><strong>Description:</strong> ${escapeHtml(ticket.description || '')}</p>
+            <p><strong>Resolution Notes:</strong> ${escapeHtml(ticket.resolution_notes || 'No resolution notes yet.')}</p>
+          </div>
+        `;
+      }
+
+      function renderActivities(activities) {
+        const list = document.getElementById('activityList');
+        if (!activities.length) {
+          list.innerHTML = '<div class="empty-state">No activity recorded yet.</div>';
+          return;
+        }
+
+        list.innerHTML = activities.map((item) => `
+          <div class="activity-entry">
+            <div class="activity-header">
+              <strong>${item.actor_name || 'System'} (${item.role || 'User'})</strong>
+              <span>${formatDate(item.created_at)}</span>
+            </div>
+            <div><strong>${item.action}</strong></div>
+            <div>${escapeHtml(item.details || '')}</div>
+          </div>
+        `).join('');
+      }
+
+      function renderActions(ticket, user) {
+        const actions = document.getElementById('ticketActions');
+        let html = `
+          <form id="commentForm">
+            <label for="commentInput">Add Comment</label>
+            <textarea id="commentInput" required></textarea>
+            <div class="form-actions">
+              <button type="submit" class="primary-btn">Add Comment</button>
+            </div>
+          </form>
+        `;
+
+        if (user.role === 'Admin' || user.role === 'Staff') {
+          html += `
+            <form id="ticketUpdateForm" style="margin-top:18px;">
+              <label for="statusSelect">Status</label>
+              <select id="statusSelect">
+                <option value="New" ${ticket.status === 'New' ? 'selected' : ''}>New</option>
+                <option value="Assigned" ${ticket.status === 'Assigned' ? 'selected' : ''}>Assigned</option>
+                <option value="In Progress" ${ticket.status === 'In Progress' ? 'selected' : ''}>In Progress</option>
+                <option value="Pending Student" ${ticket.status === 'Pending Student' ? 'selected' : ''}>Pending Student</option>
+                <option value="Resolved" ${ticket.status === 'Resolved' ? 'selected' : ''}>Resolved</option>
+                <option value="Closed" ${ticket.status === 'Closed' ? 'selected' : ''}>Closed</option>
+              </select>
+
+              <label for="prioritySelect" style="margin-top: 12px;">Priority</label>
+              <select id="prioritySelect">
+                <option value="Low" ${ticket.priority === 'Low' ? 'selected' : ''}>Low</option>
+                <option value="Medium" ${ticket.priority === 'Medium' ? 'selected' : ''}>Medium</option>
+                <option value="High" ${ticket.priority === 'High' ? 'selected' : ''}>High</option>
+                <option value="Critical" ${ticket.priority === 'Critical' ? 'selected' : ''}>Critical</option>
+              </select>
+
+              ${user.role === 'Admin' ? `
+                <label for="assignedStaffSelect" style="margin-top: 12px;">Assigned Staff</label>
+                <select id="assignedStaffSelect"></select>
+              ` : ''}
+
+              <label for="resolutionNotes" style="margin-top: 12px;">Resolution Notes</label>
+              <textarea id="resolutionNotes">${escapeHtml(ticket.resolution_notes || '')}</textarea>
+
+              <div class="form-actions">
+                <button type="submit" class="primary-btn">Update Ticket</button>
+                <button type="button" class="secondary-btn" id="resolveButton">Resolve</button>
+              </div>
+            </form>
+          `;
+
+          if (user.role === 'Admin') {
+            html += `<button class="danger-btn" id="escalateButton" style="margin-top: 16px;">Escalate Ticket</button>`;
+          }
+        }
+
+        if (user.role === 'Student') {
+          html += `
+            <div style="margin-top: 18px;">
+              <label for="studentResolutionNotes">Resolution Confirmation</label>
+              <textarea id="studentResolutionNotes" placeholder="Add final feedback or confirmation."></textarea>
+              <div class="form-actions">
+                <button class="primary-btn" id="confirmResolutionButton">Confirm Resolution</button>
+              </div>
+            </div>
+          `;
+        }
+
+        actions.innerHTML = html;
+
+        const commentForm = document.getElementById('commentForm');
+        if (commentForm) {
+          commentForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const details = document.getElementById('commentInput').value.trim();
+            try {
+              await apiRequest(`/api/tickets/${ticket.id}/comments`, {
+                method: 'POST',
+                body: JSON.stringify({ details })
+              });
+              showToast('Comment added successfully.');
+              window.location.reload();
+            } catch (error) {
+              showToast(error.message, true);
+            }
+          });
+        }
+
+        const updateForm = document.getElementById('ticketUpdateForm');
+        if (updateForm) {
+          if (user.role === 'Admin') {
+            populateStaffOptions(document.getElementById('assignedStaffSelect')).then(() => {
+              const select = document.getElementById('assignedStaffSelect');
+              select.value = ticket.assigned_staff_id || '';
+            });
+          }
+
+          updateForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const payload = {
+              status: document.getElementById('statusSelect').value,
+              priority: document.getElementById('prioritySelect').value,
+              resolution_notes: document.getElementById('resolutionNotes').value,
+            };
+
+            if (user.role === 'Admin') {
+              payload.assigned_staff_id = document.getElementById('assignedStaffSelect').value || null;
+            }
+
+            try {
+              await apiRequest(`/api/tickets/${ticket.id}`, {
+                method: 'PUT',
+                body: JSON.stringify(payload)
+              });
+              showToast('Ticket updated successfully.');
+              window.location.reload();
+            } catch (error) {
+              showToast(error.message, true);
+            }
+          });
+
+          const resolveButton = document.getElementById('resolveButton');
+          if (resolveButton) {
+            resolveButton.addEventListener('click', async () => {
+              const notes = document.getElementById('resolutionNotes').value.trim();
+              try {
+                await apiRequest(`/api/tickets/${ticket.id}/resolve`, {
+                  method: 'POST',
+                  body: JSON.stringify({ resolution_notes: notes })
+                });
+                showToast('Ticket resolved.');
+                window.location.reload();
+              } catch (error) {
+                showToast(error.message, true);
+              }
+            });
+          }
+
+          const escalateButton = document.getElementById('escalateButton');
+          if (escalateButton) {
+            escalateButton.addEventListener('click', async () => {
+              try {
+                await apiRequest(`/api/tickets/${ticket.id}/escalate`, { method: 'POST' });
+                showToast('Ticket escalated.');
+                window.location.reload();
+              } catch (error) {
+                showToast(error.message, true);
+              }
+            });
+          }
+        }
+
+        const confirmButton = document.getElementById('confirmResolutionButton');
+        if (confirmButton) {
+          confirmButton.addEventListener('click', async () => {
+            try {
+              await apiRequest(`/api/tickets/${ticket.id}/close`, {
+                method: 'POST',
+                body: JSON.stringify({ resolution_notes: document.getElementById('studentResolutionNotes').value })
+              });
+              showToast('Ticket closed successfully.');
+              window.location.reload();
+            } catch (error) {
+              showToast(error.message, true);
+            }
+          });
+        }
+      }
+
+      document.addEventListener('DOMContentLoaded', async () => {
+        const user = await ensureAuthenticated();
+        if (!user) return;
+
+        if (!ticketId) {
+          showToast('Ticket ID is missing.', true);
+          return;
+        }
+
+        try {
+          const response = await apiRequest(`/api/tickets/${ticketId}`);
+          renderTicket(response.ticket);
+          renderActivities(response.activities || []);
+          renderActions(response.ticket, user);
+        } catch (error) {
+          showToast(error.message, true);
+        }
+      });
+    </script>
+  </body>
+</html>
